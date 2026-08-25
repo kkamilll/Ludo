@@ -6,6 +6,7 @@ const setupScreen = document.getElementById('setup-screen');
 const gameScreen = document.getElementById('game-screen');
 const boardGrid = document.getElementById('board-grid');
 const boardOverlays = document.getElementById('board-overlays');
+const eventToast = document.getElementById('event-toast');
 
 const startBtn = document.getElementById('start-game-btn');
 const rollBtn = document.getElementById('roll-dice-btn');
@@ -15,9 +16,6 @@ const turnIndicator = document.getElementById('active-player-indicator');
 const turnMessage = document.getElementById('turn-message');
 
 const scoreboardList = document.getElementById('scoreboard-list');
-const consoleLogs = document.getElementById('console-logs');
-const clearConsoleBtn = document.getElementById('clear-console-btn');
-
 const speedSlider = document.getElementById('speed-slider');
 const speedLabel = document.getElementById('speed-label');
 const audioToggleBtn = document.getElementById('audio-toggle-btn');
@@ -27,34 +25,42 @@ const victoryModal = document.getElementById('victory-modal');
 const winnerTitle = document.getElementById('winner-title');
 const winnerMessage = document.getElementById('winner-message');
 const victoryRestartBtn = document.getElementById('victory-restart-btn');
+const confettiCanvas = document.getElementById('confetti-canvas');
 
 // Game state instance
 const state = new GameState();
 
 // AI Speed configurations (ms)
 const SPEED_PRESETS = {
-  1: { rollDelay: 1200, moveDelay: 400, animStep: 250 }, // Slow
-  2: { rollDelay: 700,  moveDelay: 250, animStep: 150 }, // Normal
-  3: { rollDelay: 300,  moveDelay: 100, animStep: 80 },  // Fast
-  4: { rollDelay: 50,   moveDelay: 10,  animStep: 1 }    // Ultra/Instant
+  1: { rollDelay: 1000, moveDelay: 350, animStep: 220 }, // Slow
+  2: { rollDelay: 600,  moveDelay: 200, animStep: 130 }, // Normal
+  3: { rollDelay: 250,  moveDelay: 80,  animStep: 60 },  // Fast
+  4: { rollDelay: 40,   moveDelay: 10,  animStep: 1 }    // Ultra
 };
 
 let currentSpeed = SPEED_PRESETS[2];
 let isAnimating = false;
 let aiTimeoutId = null;
+let toastTimeoutId = null;
+
+// Confetti animation variables
+let confettiCtx = null;
+let confettiParticles = [];
+let confettiAnimId = null;
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
   initUIListeners();
+  initTypePills();
   generateBoardGrid();
-  updateAudioButtonText();
+  updateAudioButton();
+  setupConfettiCanvas();
 });
 
 // Setup click and input listeners
 function initUIListeners() {
   startBtn.addEventListener('click', handleStartGame);
   rollBtn.addEventListener('click', handleHumanRoll);
-  clearConsoleBtn.addEventListener('click', () => { consoleLogs.innerHTML = ''; });
   
   speedSlider.addEventListener('input', (e) => {
     const val = parseInt(e.target.value);
@@ -64,38 +70,86 @@ function initUIListeners() {
   });
 
   audioToggleBtn.addEventListener('click', () => {
-    const isMuted = audio.toggleMute();
-    updateAudioButtonText();
-    // Warm context on click
+    audio.toggleMute();
+    updateAudioButton();
     audio.init();
   });
 
-  document.getElementById('cheat-win-btn').addEventListener('click', () => {
-    window.cheatWin(state.getActivePlayerKey());
-  });
-
   restartBtn.addEventListener('click', () => {
-    if (confirm('Czy na pewno chcesz zresetować grę i wrócić do ustawień?')) {
+    if (confirm('Zresetować grę i wrócić do ustawień?')) {
       resetToSetup();
     }
   });
 
   victoryRestartBtn.addEventListener('click', () => {
+    stopConfetti();
     victoryModal.classList.add('hidden');
     resetToSetup();
   });
 
-  // Make 3D dice cube clickable as well
+  // Tap 3D dice wrapper to roll
   document.getElementById('dice-3d-wrapper').addEventListener('click', () => {
-    if (!rollBtn.disabled) {
+    if (!rollBtn.disabled && state.phase === 'PLAYING' && state.getActivePlayer().type === 'human') {
       handleHumanRoll();
+    }
+  });
+
+  // Spacebar / Enter key to roll for human player
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' || e.code === 'Enter') {
+      if (state.phase === 'PLAYING' && !rollBtn.disabled && state.getActivePlayer().type === 'human') {
+        e.preventDefault();
+        handleHumanRoll();
+      }
     }
   });
 }
 
-function updateAudioButtonText() {
-  audioToggleBtn.innerHTML = audio.isMuted() ? '🔇 Wyciszony' : '🔊 Dźwięk';
-  audioToggleBtn.style.opacity = audio.isMuted() ? '0.6' : '1';
+function initTypePills() {
+  document.querySelectorAll('.type-toggle-group').forEach(group => {
+    const targetInputId = group.dataset.target;
+    const targetInput = document.getElementById(targetInputId);
+    const card = group.closest('.selector-card');
+
+    group.querySelectorAll('.type-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        group.querySelectorAll('.type-pill').forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+        const val = pill.dataset.value;
+        targetInput.value = val;
+
+        if (val === 'off') {
+          card.classList.add('is-off');
+        } else {
+          card.classList.remove('is-off');
+        }
+      });
+    });
+  });
+}
+
+function updateAudioButton() {
+  const isMuted = audio.isMuted();
+  audioToggleBtn.querySelector('.btn-icon').textContent = isMuted ? '🔇' : '🔊';
+  audioToggleBtn.style.opacity = isMuted ? '0.6' : '1';
+}
+
+function showToast(text, colorKey = 'default') {
+  clearTimeout(toastTimeoutId);
+  eventToast.textContent = text;
+  eventToast.className = 'event-toast';
+  if (colorKey !== 'default') {
+    eventToast.style.borderColor = `var(--${colorKey}-color)`;
+    eventToast.style.boxShadow = `0 0 16px var(--${colorKey}-glow)`;
+  } else {
+    eventToast.style.borderColor = 'var(--border-glass-bright)';
+    eventToast.style.boxShadow = '0 8px 24px rgba(0,0,0,0.5)';
+  }
+  eventToast.classList.remove('hidden');
+
+  toastTimeoutId = setTimeout(() => {
+    eventToast.classList.add('hidden');
+  }, 2200);
 }
 
 // Generate the 15x15 board cells dynamically
@@ -135,32 +189,29 @@ function generateBoardGrid() {
         boardGrid.appendChild(createBaseCell('blue', 1, 7, 10, 16));
         continue;
       }
-      // 5. Center Goal (3x3 area)
+      // 5. Center Goal
       if (row === 6 && col === 6) {
         boardGrid.appendChild(createCenterGoalCell());
         continue;
       }
 
-      // 6. Individual Track or Home Cell
+      // 6. Track or Home cell
       const cell = document.createElement('div');
       cell.style.gridColumn = col + 1;
       cell.style.gridRow = row + 1;
       cell.className = 'board-cell';
 
-      // Identify track cell indices
       const trackIdx = TRACK.findIndex(c => c.x === col && c.y === row);
       if (trackIdx !== -1) {
         cell.classList.add('cell-track');
         cell.dataset.trackIndex = trackIdx;
 
-        // Highlight starting positions
         if (trackIdx === PLAYERS_CFG.red.startIndex) cell.classList.add('cell-start-red');
         if (trackIdx === PLAYERS_CFG.green.startIndex) cell.classList.add('cell-start-green');
         if (trackIdx === PLAYERS_CFG.yellow.startIndex) cell.classList.add('cell-start-yellow');
         if (trackIdx === PLAYERS_CFG.blue.startIndex) cell.classList.add('cell-start-blue');
       }
 
-      // Identify home paths
       PLAYER_KEYS.forEach(key => {
         const homeIdx = PLAYERS_CFG[key].homePath.findIndex(c => c.x === col && c.y === row);
         if (homeIdx !== -1) {
@@ -179,8 +230,7 @@ function createBaseCell(color, colStart, colEnd, rowStart, rowEnd) {
   const base = document.createElement('div');
   base.className = `board-cell cell-base cell-base-${color}`;
   
-  // Grey out base if player is disabled/off
-  if (state.phase !== 'SETUP' && !state.players[color].active) {
+  if (state.phase !== 'SETUP' && !state.players[color]?.active) {
     base.classList.add('inactive-base');
   }
 
@@ -204,35 +254,29 @@ function createCenterGoalCell() {
   center.style.gridColumn = '7 / 10';
   center.style.gridRow = '7 / 10';
 
-  const redActive = state.phase === 'SETUP' || state.players.red.active;
-  const greenActive = state.phase === 'SETUP' || state.players.green.active;
-  const yellowActive = state.phase === 'SETUP' || state.players.yellow.active;
-  const blueActive = state.phase === 'SETUP' || state.players.blue.active;
+  const redActive = state.phase === 'SETUP' || state.players.red?.active;
+  const greenActive = state.phase === 'SETUP' || state.players.green?.active;
+  const yellowActive = state.phase === 'SETUP' || state.players.yellow?.active;
+  const blueActive = state.phase === 'SETUP' || state.players.blue?.active;
 
-  // Inline SVG for triangles pointing to center
   center.innerHTML = `
     <svg viewBox="0 0 100 100" class="center-svg">
       <!-- Left Triangle (Red) -->
-      <polygon points="0,0 50,50 0,100" fill="var(--red-color-dark)" stroke="var(--red-color)" stroke-width="1.5" style="opacity: ${redActive ? 0.8 : 0.05}" />
-      ${redActive ? '<text x="12" y="54" fill="var(--text-primary)" font-size="12" font-weight="bold">🔴</text>' : ''}
-      
+      <polygon points="0,0 50,50 0,100" fill="var(--red-color)" opacity="${redActive ? 0.85 : 0.08}" />
       <!-- Top Triangle (Green) -->
-      <polygon points="0,0 50,50 100,0" fill="var(--green-color-dark)" stroke="var(--green-color)" stroke-width="1.5" style="opacity: ${greenActive ? 0.8 : 0.05}" />
-      ${greenActive ? '<text x="42" y="24" fill="var(--text-primary)" font-size="12" font-weight="bold">🟢</text>' : ''}
-      
+      <polygon points="0,0 50,50 100,0" fill="var(--green-color)" opacity="${greenActive ? 0.85 : 0.08}" />
       <!-- Right Triangle (Yellow) -->
-      <polygon points="100,0 50,50 100,100" fill="var(--yellow-color-dark)" stroke="var(--yellow-color)" stroke-width="1.5" style="opacity: ${yellowActive ? 0.8 : 0.05}" />
-      ${yellowActive ? '<text x="72" y="54" fill="var(--text-primary)" font-size="12" font-weight="bold">🟡</text>' : ''}
-      
+      <polygon points="100,0 50,50 100,100" fill="var(--yellow-color)" opacity="${yellowActive ? 0.85 : 0.08}" />
       <!-- Bottom Triangle (Blue) -->
-      <polygon points="0,100 50,50 100,100" fill="var(--blue-color-dark)" stroke="var(--blue-color)" stroke-width="1.5" style="opacity: ${blueActive ? 0.8 : 0.05}" />
-      ${blueActive ? '<text x="42" y="86" fill="var(--text-primary)" font-size="12" font-weight="bold">🔵</text>' : ''}
+      <polygon points="0,100 50,50 100,100" fill="var(--blue-color)" opacity="${blueActive ? 0.85 : 0.08}" />
+      <circle cx="50" cy="50" r="12" fill="#090e1c" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" />
+      <polygon points="50,42 52.5,47.5 58,48 54,52 55,57.5 50,54.5 45,57.5 46,52 42,48 47.5,47.5" fill="#f8fafc" opacity="0.9" />
     </svg>
   `;
   return center;
 }
 
-// Start Game from setup configuration
+// Start Game
 function handleStartGame() {
   audio.init();
 
@@ -255,43 +299,39 @@ function handleStartGame() {
     }
   };
 
-  // Count active players
   const activeCount = Object.values(cfg).filter(p => p.type !== 'off').length;
   if (activeCount < 2) {
-    alert('Do gry wymaganych jest przynajmniej 2 aktywnych graczy!');
+    alert('Wybierz przynajmniej 2 aktywnych graczy!');
     return;
   }
 
   state.setupGame(cfg);
-  generateBoardGrid(); // Re-render the board to reflect which bases are active vs inactive
+  generateBoardGrid();
   
   setupScreen.classList.add('hidden');
   gameScreen.classList.remove('hidden');
-
-  logMessage('Rozpoczęto nową grę!', 'success');
   
-  // Create pawn elements
   createPawnElements();
-  
-  // Kickoff turn
   startPlayerTurn();
 }
 
 function resetToSetup() {
   clearTimeout(aiTimeoutId);
+  clearTimeout(toastTimeoutId);
+  eventToast.classList.add('hidden');
+  stopConfetti();
+  
   state.phase = 'SETUP';
-  generateBoardGrid(); // Reset bases back to default active styles
+  generateBoardGrid();
   setupScreen.classList.remove('hidden');
   gameScreen.classList.add('hidden');
   boardOverlays.innerHTML = '';
   isAnimating = false;
 }
 
-// Create pawn elements and place them
 function createPawnElements() {
   boardOverlays.innerHTML = '';
   state.pawns.forEach(p => {
-    // Only create DOM pawn nodes for players who are active in this game session!
     if (!state.players[p.playerId].active) return;
 
     const pawnEl = document.createElement('div');
@@ -305,13 +345,11 @@ function createPawnElements() {
   renderPawns();
 }
 
-// Position pawns on the board (including stacking)
 function renderPawns() {
-  // Map of "x,y" -> Array of pawn elements
   const cellPawnMap = {};
 
   state.pawns.forEach(p => {
-    if (p.state === 'goal') return; // Hide or pile at goal
+    if (p.state === 'goal') return;
 
     const coords = getPawnCoords(p);
     const key = `${coords.x},${coords.y}`;
@@ -323,13 +361,11 @@ function renderPawns() {
     const el = document.getElementById(`pawn-${p.playerId}-${p.id}`);
     if (el) {
       cellPawnMap[key].push(el);
-      // Remove any stack offsets
       el.className = `pawn pawn-${p.playerId}`;
       el.style.transform = '';
     }
   });
 
-  // Apply positions & stacking offset coordinates
   for (const key in cellPawnMap) {
     const elements = cellPawnMap[key];
     const [x, y] = key.split(',').map(Number);
@@ -339,14 +375,13 @@ function renderPawns() {
       el.style.left = `calc(${x} * 100% / 15 + 2px)`;
       el.style.top = `calc(${y} * 100% / 15 + 2px)`;
 
-      // Apply staggering offsets for stacks
       if (count > 1) {
         el.classList.add(`stacked-offset-${index}`);
       }
     });
   }
 
-  // Handle goal pawns separately (neat pile at their goal point)
+  // Position goal pawns neatly
   PLAYER_KEYS.forEach(key => {
     const goalPawns = state.pawns.filter(p => p.playerId === key && p.state === 'goal');
     const cfg = PLAYERS_CFG[key];
@@ -357,7 +392,7 @@ function renderPawns() {
         el.className = `pawn pawn-${p.playerId}`;
         el.style.left = `calc(${cfg.goalPoint.x} * 100% / 15 + 2px)`;
         el.style.top = `calc(${cfg.goalPoint.y} * 100% / 15 + 2px)`;
-        el.style.transform = `scale(0.7) translate(${(index % 2) * 8 - 4}px, ${Math.floor(index / 2) * 8 - 4}px)`;
+        el.style.transform = `scale(0.65) translate(${(index % 2) * 10 - 5}px, ${Math.floor(index / 2) * 10 - 5}px)`;
       }
     });
   });
@@ -377,81 +412,76 @@ function getPawnCoords(pawn) {
   return {x: 0, y: 0};
 }
 
-// Start a turn
+// Start player's turn
 function startPlayerTurn() {
-  if (state.phase === 'FINISHED') {
-    handleVictory();
+  if (state.phase !== 'PLAYING') {
+    if (state.phase === 'FINISHED') handleVictory();
     return;
   }
 
   const pKey = state.getActivePlayerKey();
   const player = state.getActivePlayer();
 
-  // Reset dice class to match current value without animation
   diceCube.className = `dice-cube show-${state.diceValue}`;
-  
-  // Highlight active player indicator
   turnIndicator.className = `active-player-indicator ${pKey}`;
   turnPlayerName.textContent = player.name;
 
-  // Clear previous selectable highlights
   clearPawnHighlights();
-
   updateScoreboard();
 
   if (player.type === 'human') {
     rollBtn.disabled = false;
     rollBtn.textContent = 'Rzuć Kostką';
-    turnMessage.textContent = 'Twoja tura! Rzuć kostką.';
+    turnMessage.textContent = 'Rzuć kostką';
   } else {
-    // AI Turn
     rollBtn.disabled = true;
-    rollBtn.textContent = 'Komputer Rzuca...';
-    turnMessage.textContent = `Tura komputera (${player.name})...`;
-    
-    // Auto roll after delay
+    rollBtn.textContent = 'Rzut bota...';
+    turnMessage.textContent = 'Bot rzuca...';
     aiTimeoutId = setTimeout(handleAIRoll, currentSpeed.rollDelay);
   }
 }
 
-// Human Roll Dice Action
+// Human Roll
 function handleHumanRoll() {
+  if (state.phase !== 'PLAYING' || isAnimating) return;
   rollBtn.disabled = true;
-  rollBtn.textContent = 'Rzucanie...';
+  rollBtn.textContent = '...';
   const roll = state.rollDice();
   animateDiceRoll(roll, () => {
-    logMessage(`Gracz ${state.getActivePlayer().name} wyrzucił: **${roll}**`, state.getActivePlayerKey());
+    if (state.phase !== 'PLAYING') return;
     handleRollResult();
   });
 }
 
-// AI Roll Dice Action
+// AI Roll
 function handleAIRoll() {
+  if (state.phase !== 'PLAYING' || isAnimating) return;
   const roll = state.rollDice();
   animateDiceRoll(roll, () => {
-    logMessage(`Komputer ${state.getActivePlayer().name} wyrzucił: **${roll}**`, state.getActivePlayerKey());
+    if (state.phase !== 'PLAYING') return;
     handleRollResult();
   });
 }
 
-// Animate dice spinning in 3D
+// 3D Dice Animation
 function animateDiceRoll(finalValue, callback) {
   audio.playRoll();
-  
   diceCube.className = 'dice-cube rolling';
   
   setTimeout(() => {
-    // Land on the exact value we rolled!
+    if (state.phase !== 'PLAYING') return;
     diceCube.className = `dice-cube show-${finalValue}`;
 
     setTimeout(() => {
+      if (state.phase !== 'PLAYING') return;
       callback();
-    }, 1000); // Wait for transition to finish
-  }, 800); // Spin for 800ms
+    }, 700);
+  }, 600);
 }
 
-// Process the roll value and find valid moves
+// Process roll results
 function handleRollResult() {
+  if (state.phase !== 'PLAYING') return;
   const val = state.diceValue;
   diceCube.className = `dice-cube show-${val}`;
   
@@ -460,13 +490,11 @@ function handleRollResult() {
   const key = state.getActivePlayerKey();
 
   if (validMoves.length === 0) {
-    // No moves available
     const maxRolls = state.getMaxRollsForCurrentTurn();
     const remainingRolls = maxRolls - state.rollCount;
 
     if (remainingRolls > 0) {
-      logMessage(`Brak ruchu. Pozostało rzutów: **${remainingRolls}**`, 'system');
-      turnMessage.textContent = `Brak ruchu dla wartości ${val}. Rzuć ponownie! (${remainingRolls} szanse)`;
+      turnMessage.textContent = `Brak ruchu. Rzut ${state.rollCount}/${maxRolls}`;
       
       if (player.type === 'human') {
         rollBtn.disabled = false;
@@ -475,23 +503,21 @@ function handleRollResult() {
         aiTimeoutId = setTimeout(handleAIRoll, currentSpeed.rollDelay);
       }
     } else {
-      // Out of rolls, pass turn
-      logMessage(`Brak dopuszczalnych ruchów dla wartości ${val}. Strata tury.`, 'system');
-      turnMessage.textContent = 'Brak dopuszczalnych ruchów. Tura przechodzi dalej.';
+      turnMessage.textContent = 'Brak ruchu';
       
-      setTimeout(() => {
+      aiTimeoutId = setTimeout(() => {
+        if (state.phase !== 'PLAYING') return;
         state.endTurn();
         startPlayerTurn();
       }, currentSpeed.rollDelay);
     }
   } else {
-    // Valid moves exist!
     if (player.type === 'human') {
-      turnMessage.textContent = `Wybierz pionek, aby przesunąć o ${val} pól.`;
+      turnMessage.textContent = `Wybierz pionek (+${val})`;
       highlightSelectablePawns(validMoves);
     } else {
-      // AI selects and plays move
       aiTimeoutId = setTimeout(() => {
+        if (state.phase !== 'PLAYING') return;
         const bestPawn = state.getBestAIMove();
         executePawnMovement(bestPawn);
       }, currentSpeed.moveDelay);
@@ -499,7 +525,6 @@ function handleRollResult() {
   }
 }
 
-// Highlight pawns that can move
 function highlightSelectablePawns(pawns) {
   pawns.forEach(p => {
     const el = document.getElementById(`pawn-${p.playerId}-${p.id}`);
@@ -507,10 +532,8 @@ function highlightSelectablePawns(pawns) {
       el.classList.add('selectable');
       el.style.pointerEvents = 'auto';
       
-      // Store listener reference to clean up later
       const clickHandler = () => {
-        // Prevent clicking multiple times or during animations
-        if (isAnimating) return;
+        if (isAnimating || state.phase !== 'PLAYING') return;
         clearPawnHighlights();
         executePawnMovement(p);
       };
@@ -534,16 +557,13 @@ function clearPawnHighlights() {
   });
 }
 
-// Path calculation for smooth animations
 function calculatePawnPathCoords(pawn, diceVal) {
   const coordsPath = [];
   const cfg = PLAYERS_CFG[pawn.playerId];
   
   if (pawn.state === 'base') {
-    // Moving out of base to start cell
     coordsPath.push(TRACK[cfg.startIndex]);
   } else if (pawn.state === 'track') {
-    // Step by step on perimeter/home path
     for (let i = 1; i <= diceVal; i++) {
       const step = pawn.stepCount + i;
       if (step <= 50) {
@@ -555,7 +575,6 @@ function calculatePawnPathCoords(pawn, diceVal) {
       }
     }
   } else if (pawn.state === 'home') {
-    // Moving inside home path
     for (let i = 1; i <= diceVal; i++) {
       const nextPos = pawn.position + i;
       if (nextPos < 5) {
@@ -568,84 +587,74 @@ function calculatePawnPathCoords(pawn, diceVal) {
   return coordsPath;
 }
 
-// Animate pawn sliding cell-by-cell
+// Animate pawn step-by-step
 async function executePawnMovement(pawn) {
+  if (!pawn || state.phase !== 'PLAYING') return;
   isAnimating = true;
   const coordsPath = calculatePawnPathCoords(pawn, state.diceValue);
   const el = document.getElementById(`pawn-${pawn.playerId}-${pawn.id}`);
   
-  // Temporary remove stack class for duration of motion
-  el.className = `pawn pawn-${pawn.playerId}`;
+  if (el) {
+    el.className = `pawn pawn-${pawn.playerId}`;
+  }
 
-  // Slide through each intermediate step
   for (let i = 0; i < coordsPath.length; i++) {
+    if (state.phase !== 'PLAYING') {
+      isAnimating = false;
+      return;
+    }
     const coords = coordsPath[i];
     
-    // Use smaller steps duration for speed slider setting
     await new Promise(resolve => {
       audio.playMove();
-      el.style.left = `calc(${coords.x} * 100% / 15 + 2px)`;
-      el.style.top = `calc(${coords.y} * 100% / 15 + 2px)`;
-      
+      if (el) {
+        el.style.left = `calc(${coords.x} * 100% / 15 + 2px)`;
+        el.style.top = `calc(${coords.y} * 100% / 15 + 2px)`;
+      }
       setTimeout(resolve, currentSpeed.animStep);
     });
   }
 
-  // Update logic state
+  if (state.phase !== 'PLAYING') {
+    isAnimating = false;
+    return;
+  }
+
   const result = state.movePawn(pawn);
   
   if (result) {
-    const player = state.players[pawn.playerId];
-    
-    if (result.oldState === 'base') {
-      logMessage(`Gracz ${player.name} wprowadził pionka na planszę`, pawn.playerId);
-    } else if (pawn.state === 'goal') {
-      logMessage(`Gracz ${player.name} wprowadził pionka na **METĘ**!`, 'success');
+    if (pawn.state === 'goal') {
+      showToast('🏁 Pionek na mecie!', pawn.playerId);
     }
 
-    // Capture (zbijanie) event log and sound trigger
     if (result.captureEvent) {
       audio.playCapture();
-      const attackerName = state.players[result.captureEvent.attacker].name;
-      const victimName = state.players[result.captureEvent.victim].name;
-      
-      logMessage(`💥 ZBICIE! **${attackerName}** zbija pionek gracza **${victimName}**!`, 'warning');
-      
-      // Briefly animate victim flying back to base (snap renders immediately but looks cooler with renderPawns)
-      triggerCaptureVisualEffect(result.captureEvent.victim);
+      showToast('💥 Zbicie pionka!', result.captureEvent.attacker);
     }
   }
 
-  // Render final placement
   renderPawns();
   isAnimating = false;
 
-  // Process turn changes
   const turnChanged = state.endTurn();
 
   if (state.phase === 'FINISHED') {
     handleVictory();
   } else {
     if (!turnChanged && state.diceValue === 6) {
-      logMessage(`Gracz ${state.getActivePlayer().name} wyrzucił 6 - dodatkowy rzut!`, 'system');
+      showToast('🎲 Szóstka! Dodatkowy rzut', state.getActivePlayerKey());
     }
     startPlayerTurn();
   }
 }
 
-// Visual scale down on capture
-function triggerCaptureVisualEffect(victimPlayerId) {
-  // Rapid visual snap
-  renderPawns();
-}
-
-// Render score cards dynamically
+// Render dynamic scoreboard
 function updateScoreboard() {
   scoreboardList.innerHTML = '';
 
   PLAYER_KEYS.forEach(key => {
     const player = state.players[key];
-    if (!player.active) return;
+    if (!player?.active) return;
 
     const pawns = state.pawns.filter(p => p.playerId === key);
     const card = document.createElement('div');
@@ -653,7 +662,7 @@ function updateScoreboard() {
 
     if (state.getActivePlayerKey() === key && state.phase === 'PLAYING') {
       card.style.borderColor = `var(--${key}-color)`;
-      card.style.boxShadow = `0 0 10px var(--${key}-color-dark)`;
+      card.style.boxShadow = `0 0 12px var(--${key}-glow)`;
     }
 
     const info = document.createElement('div');
@@ -665,15 +674,14 @@ function updateScoreboard() {
     const nameSpan = document.createElement('span');
     nameSpan.className = 'score-player-name';
     nameSpan.textContent = player.name;
-    if (state.winner === key) nameSpan.classList.add('winner');
 
-    const typeSpan = document.createElement('span');
-    typeSpan.className = 'score-type-badge';
-    typeSpan.textContent = player.type === 'human' ? 'G' : 'SI';
+    const typeTag = document.createElement('span');
+    typeTag.className = 'score-type-tag';
+    typeTag.textContent = player.type === 'human' ? 'G' : 'BOT';
 
     info.appendChild(dot);
     info.appendChild(nameSpan);
-    info.appendChild(typeSpan);
+    info.appendChild(typeTag);
 
     const pawnsDiv = document.createElement('div');
     pawnsDiv.className = 'score-pawns-container';
@@ -681,11 +689,10 @@ function updateScoreboard() {
     pawns.forEach(p => {
       const pDot = document.createElement('div');
       pDot.className = 'score-pawn-dot';
-      pDot.textContent = p.id + 1; // 1-based display
+      pDot.textContent = p.id + 1;
       
       if (p.state === 'base') pDot.classList.add('in-base');
-      if (p.state === 'track') pDot.classList.add('on-track');
-      if (p.state === 'home') pDot.classList.add('on-track');
+      if (p.state === 'track' || p.state === 'home') pDot.classList.add('on-track');
       if (p.state === 'goal') pDot.classList.add('at-goal');
 
       pawnsDiv.appendChild(pDot);
@@ -697,45 +704,84 @@ function updateScoreboard() {
   });
 }
 
-// Log messages to history console
-function logMessage(text, type = 'system') {
-  const entry = document.createElement('div');
-  entry.className = `log-entry ${type}`;
-  
-  // Format markdown-like bold strings **text** to <strong>text</strong>
-  const htmlText = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-  
-  const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  entry.innerHTML = `<span style="opacity: 0.4">[${timestamp}]</span> ${htmlText}`;
-  
-  consoleLogs.appendChild(entry);
-  consoleLogs.scrollTop = consoleLogs.scrollHeight;
-}
-
-// Handle end of game
+// Victory handling
 function handleVictory() {
   audio.playWin();
-  const winnerName = state.players[state.winner].name;
+  const winner = state.players[state.winner];
   
-  winnerTitle.textContent = `Mamy Zwycięzcę!`;
-  winnerMessage.innerHTML = `🏆 Komputer / Gracz <strong>${winnerName}</strong> doprowadził wszystkie pionki na metę i wygrał grę! Gratulacje!`;
+  winnerTitle.textContent = `Zwycięstwo!`;
+  winnerMessage.innerHTML = `🏆 Gracz <strong>${winner.name}</strong> doprowadził wszystkie pionki na metę!`;
   
   victoryModal.classList.remove('hidden');
-  logMessage(`🏆 GRACZ **${winnerName}** WYGRAŁ GRĘ! 🏆`, 'success');
+  startConfetti();
 }
 
-// Global debug helper to verify victory programmatically
-window.cheatWin = (color = 'red') => {
-  state.pawns.forEach(p => {
-    if (p.playerId === color) {
-      p.state = 'goal';
-      p.position = 0;
-      p.stepCount = 56;
-    }
-  });
-  state.phase = 'FINISHED';
-  state.winner = color;
-  handleVictory();
-  updateScoreboard();
-  renderPawns();
-};
+// Confetti animation
+function setupConfettiCanvas() {
+  if (!confettiCanvas) return;
+  confettiCtx = confettiCanvas.getContext('2d');
+  resizeConfettiCanvas();
+  window.addEventListener('resize', resizeConfettiCanvas);
+}
+
+function resizeConfettiCanvas() {
+  if (!confettiCanvas) return;
+  confettiCanvas.width = window.innerWidth;
+  confettiCanvas.height = window.innerHeight;
+}
+
+function startConfetti() {
+  if (!confettiCanvas || !confettiCtx) return;
+  resizeConfettiCanvas();
+  confettiParticles = [];
+  const colors = ['#ff334b', '#10b981', '#f59e0b', '#0ea5e9', '#ffffff', '#a855f7'];
+
+  for (let i = 0; i < 150; i++) {
+    confettiParticles.push({
+      x: Math.random() * confettiCanvas.width,
+      y: Math.random() * confettiCanvas.height - confettiCanvas.height,
+      size: Math.random() * 8 + 4,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      speedY: Math.random() * 3 + 2,
+      speedX: (Math.random() - 0.5) * 2,
+      rotation: Math.random() * 360,
+      rotSpeed: (Math.random() - 0.5) * 6
+    });
+  }
+
+  function loop() {
+    confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+
+    confettiParticles.forEach(p => {
+      p.y += p.speedY;
+      p.x += p.speedX;
+      p.rotation += p.rotSpeed;
+
+      if (p.y > confettiCanvas.height) {
+        p.y = -10;
+        p.x = Math.random() * confettiCanvas.width;
+      }
+
+      confettiCtx.save();
+      confettiCtx.translate(p.x, p.y);
+      confettiCtx.rotate((p.rotation * Math.PI) / 180);
+      confettiCtx.fillStyle = p.color;
+      confettiCtx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+      confettiCtx.restore();
+    });
+
+    confettiAnimId = requestAnimationFrame(loop);
+  }
+
+  loop();
+}
+
+function stopConfetti() {
+  if (confettiAnimId) {
+    cancelAnimationFrame(confettiAnimId);
+    confettiAnimId = null;
+  }
+  if (confettiCtx && confettiCanvas) {
+    confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+  }
+}

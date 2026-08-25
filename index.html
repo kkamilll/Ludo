@@ -1,247 +1,163 @@
 <!DOCTYPE html>
-<html lang="pl">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chińczyk - Cyfrowa Edycja Premium</title>
-  <meta name="description" content="Nowoczesna, w pełni interaktywna gra w Chińczyka. Piękny szklany design, inteligentna SI, dźwięki Web Audio API oraz płynne animacje.">
+  <title>Ludo</title>
   
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
   
   <!-- CSS Stylesheet -->
-  <link rel="stylesheet" href="styles.css?v=3">
+  <link rel="stylesheet" href="styles.css?v=8">
 </head>
 <body>
-  <!-- Neon Background Elements -->
-  <div class="neon-bg-glow glow-1"></div>
-  <div class="neon-bg-glow glow-2"></div>
-
   <div class="app-container">
-    <header class="app-header">
-      <h1>Chińczyk</h1>
-      <p class="subtitle">Cyfrowa Edycja Premium</p>
-    </header>
+    <!-- Setup Dashboard -->
+    <main id="setup-screen" class="setup-panel">
+      <div class="brand">
+        <h1>Ludo</h1>
+      </div>
 
-    <!-- Setup Dashboard Screen -->
-    <div id="setup-screen" class="glass-panel setup-panel">
-      <h2>Ustawienia Nowej Rozgrywki</h2>
-      <p class="setup-intro">Wybierz graczy biorących udział w rozgrywce oraz ich typ (Człowiek lub Komputer):</p>
-      
       <div class="player-selectors">
-        <!-- Player Red -->
-        <div class="selector-card card-red">
+        <!-- Player Red (Top-Left) -->
+        <div class="selector-card card-red" data-color="red">
           <div class="color-badge badge-red"></div>
-          <h3>Gracz Czerwony</h3>
-          <div class="input-group">
-            <label for="red-name">Nazwa:</label>
-            <input type="text" id="red-name" value="Gracz 1" maxlength="12">
-          </div>
-          <div class="input-group">
-            <label for="red-type">Typ:</label>
-            <select id="red-type">
-              <option value="human" selected>Człowiek</option>
-              <option value="ai">Komputer (SI)</option>
-              <option value="off">Wyłączony</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Player Green -->
-        <div class="selector-card card-green">
-          <div class="color-badge badge-green"></div>
-          <h3>Gracz Zielony</h3>
-          <div class="input-group">
-            <label for="green-name">Nazwa:</label>
-            <input type="text" id="green-name" value="Gracz 2" maxlength="12">
-          </div>
-          <div class="input-group">
-            <label for="green-type">Typ:</label>
-            <select id="green-type">
-              <option value="human">Człowiek</option>
-              <option value="ai" selected>Komputer (SI)</option>
-              <option value="off">Wyłączony</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Player Blue -->
-        <div class="selector-card card-blue">
-          <div class="color-badge badge-blue"></div>
-          <h3>Gracz Niebieski</h3>
-          <div class="input-group">
-            <label for="blue-name">Nazwa:</label>
-            <input type="text" id="blue-name" value="Gracz 4" maxlength="12">
-          </div>
-          <div class="input-group">
-            <label for="blue-type">Typ:</label>
-            <select id="blue-type">
-              <option value="off" selected>Wyłączony</option>
-              <option value="human">Człowiek</option>
-              <option value="ai">Komputer (SI)</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Player Yellow -->
-        <div class="selector-card card-yellow">
-          <div class="color-badge badge-yellow"></div>
-          <h3>Gracz Żółty</h3>
-          <div class="input-group">
-            <label for="yellow-name">Nazwa:</label>
-            <input type="text" id="yellow-name" value="Gracz 3" maxlength="12">
-          </div>
-          <div class="input-group">
-            <label for="yellow-type">Typ:</label>
-            <select id="yellow-type">
-              <option value="off" selected>Wyłączony</option>
-              <option value="human">Człowiek</option>
-              <option value="ai">Komputer (SI)</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <div class="setup-actions">
-        <button id="start-game-btn" class="btn btn-primary btn-glow">Rozpocznij Grę</button>
-      </div>
-    </div>
-
-    <!-- Main Game Screen (hidden initially) -->
-    <div id="game-screen" class="game-layout hidden">
-      <!-- Left side: The Board -->
-      <div class="board-outer-container">
-        <div id="board-container" class="glass-panel board-glass">
-          <div id="board-wrapper" class="board-wrapper">
-            <div id="board-grid" class="board-grid">
-              <!-- Dynamically generated 15x15 grid cells -->
+          <div class="card-body">
+            <input type="text" id="red-name" class="player-name-input" value="Player 1" maxlength="12">
+            <div class="type-toggle-group" data-target="red-type">
+              <button type="button" class="type-pill active" data-value="human">Player</button>
+              <button type="button" class="type-pill" data-value="ai">Bot</button>
+              <button type="button" class="type-pill" data-value="off">Off</button>
             </div>
-            <!-- Absolute container for overlay animations (pawns, indicators) -->
+            <input type="hidden" id="red-type" value="human">
+          </div>
+        </div>
+
+        <!-- Player Blue (Top-Right) -->
+        <div class="selector-card card-blue" data-color="blue">
+          <div class="color-badge badge-blue"></div>
+          <div class="card-body">
+            <input type="text" id="blue-name" class="player-name-input" value="Player 2" maxlength="12">
+            <div class="type-toggle-group" data-target="blue-type">
+              <button type="button" class="type-pill" data-value="human">Player</button>
+              <button type="button" class="type-pill active" data-value="ai">Bot</button>
+              <button type="button" class="type-pill" data-value="off">Off</button>
+            </div>
+            <input type="hidden" id="blue-type" value="ai">
+          </div>
+        </div>
+
+        <!-- Player Yellow (Bottom-Left) -->
+        <div class="selector-card card-yellow" data-color="yellow">
+          <div class="color-badge badge-yellow"></div>
+          <div class="card-body">
+            <input type="text" id="yellow-name" class="player-name-input" value="Player 4" maxlength="12">
+            <div class="type-toggle-group" data-target="yellow-type">
+              <button type="button" class="type-pill" data-value="human">Player</button>
+              <button type="button" class="type-pill" data-value="ai">Bot</button>
+              <button type="button" class="type-pill active" data-value="off">Off</button>
+            </div>
+            <input type="hidden" id="yellow-type" value="off">
+          </div>
+        </div>
+
+        <!-- Player Green (Bottom-Right) -->
+        <div class="selector-card card-green" data-color="green">
+          <div class="color-badge badge-green"></div>
+          <div class="card-body">
+            <input type="text" id="green-name" class="player-name-input" value="Player 3" maxlength="12">
+            <div class="type-toggle-group" data-target="green-type">
+              <button type="button" class="type-pill" data-value="human">Player</button>
+              <button type="button" class="type-pill" data-value="ai">Bot</button>
+              <button type="button" class="type-pill active" data-value="off">Off</button>
+            </div>
+            <input type="hidden" id="green-type" value="off">
+          </div>
+        </div>
+      </div>
+
+      <div class="setup-footer">
+        <button id="start-game-btn" class="btn btn-primary">Start Game</button>
+      </div>
+    </main>
+
+    <!-- Main Game Screen -->
+    <main id="game-screen" class="game-layout hidden">
+      <!-- Board Area -->
+      <div class="board-arena">
+        <!-- Toast message placed cleanly ABOVE the board -->
+        <div class="toast-wrapper">
+          <div id="event-toast" class="event-toast hidden"></div>
+        </div>
+
+        <div id="board-container" class="board-container">
+          <div id="board-wrapper" class="board-wrapper">
+            <!-- Exact Authentic SVG Board Matching Image -->
+            <svg id="board-svg" class="board-svg" viewBox="0 0 1100 1100"></svg>
+            <!-- Overlay Pawns Container -->
             <div id="board-overlays" class="board-overlays"></div>
           </div>
         </div>
       </div>
 
-      <!-- Right side: Sidebar with Turn, Scoreboard, and Console -->
-      <div class="sidebar-layout">
-        <!-- Turn info & Roll Dice Panel -->
-        <div id="turn-panel" class="glass-panel turn-panel">
-          <div class="turn-header">
-            <h3>Tura Gracza:</h3>
-            <div id="active-player-indicator" class="active-player-indicator">
-              <div class="color-dot"></div>
-              <span id="active-player-name">Nazwa Gracza</span>
-            </div>
+      <!-- Sidebar -->
+      <aside class="sidebar-layout">
+        <!-- Turn & Dice -->
+        <div class="sidebar-card turn-card">
+          <div id="active-player-indicator" class="active-player-indicator">
+            <div class="color-dot"></div>
+            <span id="active-player-name">Player</span>
           </div>
           
           <div class="dice-container">
-            <!-- 3D Dice Object -->
-            <div id="dice-3d-wrapper" class="dice-3d-wrapper">
+            <div id="dice-3d-wrapper" class="dice-3d-wrapper" title="Space or Click to Roll">
               <div id="dice-cube" class="dice-cube show-1">
-                <!-- Face 1 -->
-                <div class="dice-face face-1">
-                  <span class="dot"></span>
-                </div>
-                <!-- Face 2 -->
-                <div class="dice-face face-2">
-                  <span class="dot"></span>
-                  <span class="dot"></span>
-                </div>
-                <!-- Face 3 -->
-                <div class="dice-face face-3">
-                  <span class="dot"></span>
-                  <span class="dot"></span>
-                  <span class="dot"></span>
-                </div>
-                <!-- Face 4 -->
-                <div class="dice-face face-4">
-                  <span class="dot"></span>
-                  <span class="dot"></span>
-                  <span class="dot"></span>
-                  <span class="dot"></span>
-                </div>
-                <!-- Face 5 -->
-                <div class="dice-face face-5">
-                  <span class="dot"></span>
-                  <span class="dot"></span>
-                  <span class="dot"></span>
-                  <span class="dot"></span>
-                  <span class="dot"></span>
-                </div>
-                <!-- Face 6 -->
-                <div class="dice-face face-6">
-                  <span class="dot"></span>
-                  <span class="dot"></span>
-                  <span class="dot"></span>
-                  <span class="dot"></span>
-                  <span class="dot"></span>
-                  <span class="dot"></span>
-                </div>
+                <div class="dice-face face-1"><span class="dot"></span></div>
+                <div class="dice-face face-2"><span class="dot"></span><span class="dot"></span></div>
+                <div class="dice-face face-3"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+                <div class="dice-face face-4"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+                <div class="dice-face face-5"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+                <div class="dice-face face-6"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
               </div>
             </div>
             
-            <button id="roll-dice-btn" class="btn btn-primary btn-glow">Rzuć Kostką</button>
+            <button id="roll-dice-btn" class="btn btn-primary">Roll Dice</button>
           </div>
 
-          <div id="turn-message" class="turn-message">Wyrzuć kostką, aby rozpocząć ruch.</div>
+          <div id="turn-message" class="turn-status-badge">Roll dice</div>
         </div>
 
-        <!-- Scoreboard and stats -->
-        <div class="glass-panel scoreboard-panel">
-          <h3>Wyniki</h3>
-          <div id="scoreboard-list" class="scoreboard-list">
-            <!-- Dynamically populated scoreboard cards -->
-          </div>
+        <!-- Scoreboard -->
+        <div class="sidebar-card scoreboard-card">
+          <div id="scoreboard-list" class="scoreboard-list"></div>
         </div>
 
-        <!-- Game Console Log -->
-        <div class="glass-panel console-panel">
-          <div class="console-header">
-            <h3>Przebieg Gry</h3>
-            <button id="clear-console-btn" class="btn-text">Wyczyść</button>
-          </div>
-          <div id="console-logs" class="console-logs">
-            <div class="log-entry system">Uruchomiono grę. Powodzenia!</div>
+        <!-- Speed control -->
+        <div class="sidebar-card speed-card">
+          <div class="speed-control">
+            <span>⚡</span>
+            <input type="range" id="speed-slider" min="1" max="4" value="2" step="1">
+            <span id="speed-label" class="speed-tag">Normal</span>
           </div>
         </div>
-
-        <!-- Quick Game Controls & Options -->
-        <div class="glass-panel controls-panel">
-          <div class="control-row">
-            <label for="speed-slider" title="Szybkość ruchów pionków komputera">Szybkość SI:</label>
-            <div class="speed-slider-container">
-              <input type="range" id="speed-slider" min="1" max="4" value="2" step="1">
-              <span id="speed-label">Normalna</span>
-            </div>
-          </div>
-
-          <div class="control-row buttons">
-            <button id="audio-toggle-btn" class="btn btn-secondary" title="Włącz/Wyłącz dźwięk">
-              <span class="audio-icon">🔊 Dźwięk</span>
-            </button>
-            <button id="cheat-win-btn" class="btn btn-secondary" title="Przetestuj ekran zwycięstwa">🏆 Test wygranej</button>
-            <button id="restart-game-btn" class="btn btn-danger">Reset gry</button>
-          </div>
-        </div>
-      </div>
-    </div>
+      </aside>
+    </main>
   </div>
 
-  <!-- Game Victory Modal -->
+  <!-- Victory Modal -->
   <div id="victory-modal" class="modal hidden">
-    <div class="modal-content glass-panel victory-card">
-      <div class="victory-decor">🏆</div>
-      <h2 id="winner-title">Mamy Zwycięzcę!</h2>
-      <p id="winner-message">Gracz Czerwony wygrał rozgrywkę!</p>
-      <button id="victory-restart-btn" class="btn btn-primary btn-glow">Zagraj Ponownie</button>
+    <div class="modal-content victory-card">
+      <div class="victory-crown">🏆</div>
+      <h2 id="winner-title">Victory!</h2>
+      <p id="winner-message">Player won the game!</p>
+      <button id="victory-restart-btn" class="btn btn-primary">Play Again</button>
     </div>
   </div>
 
   <!-- Scripts -->
-  <script type="module" src="src/audio.js?v=3"></script>
-  <script type="module" src="src/game.js?v=3"></script>
-  <script type="module" src="src/ui.js?v=3"></script>
+  <script src="src/app.js?v=8"></script>
 </body>
 </html>

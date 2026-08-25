@@ -7,7 +7,12 @@ class AudioEngine {
 
   // Initialize the audio context (must be called after a user interaction)
   init() {
-    if (this.ctx) return;
+    if (this.ctx) {
+      if (this.ctx.state === 'suspended') {
+        this.ctx.resume().catch(() => {});
+      }
+      return;
+    }
     try {
       this.ctx = new (window.AudioContext || window.webkitAudioContext)();
     } catch (e) {
